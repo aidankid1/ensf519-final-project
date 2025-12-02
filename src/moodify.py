@@ -68,7 +68,7 @@ def transformations():
 
     resnet_train_tf = transforms.Compose([
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((224, 224)),
+        transforms.Resize((112, 112)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
         transforms.ToTensor(),
@@ -77,7 +77,7 @@ def transformations():
 
     resnet_test_tf = transforms.Compose([
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((224, 224)),
+        transforms.Resize((112, 112)),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
     ])
