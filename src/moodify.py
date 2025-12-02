@@ -192,7 +192,11 @@ def train_model(model, train_loader, test_loader, epochs=5):
     '''
     model = model.to(DEVICE)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.fc.parameters(), lr=1e-3) # backbone frozen, therefore only pass the necessary ones
+    # Choose params to optimize
+    if hasattr(model, "fc"):   # ResNet18 path (since backbone is frozen, no need for other params)
+        optimizer = optim.Adam(model.fc.parameters(), lr=1e-3)
+    else:                      # CustomCNN or other models
+        optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -345,16 +349,17 @@ def main():
     print("ResNet batch:", x_res.shape, x_res.min().item(), x_res.max().item())
 
     # initialize models
-    cnn_model = CustomCNN(num_classes=classes)
-    resnet_model = get_resnet18(num_classes=classes)
+    num_classes = len(classes)
+    cnn_model = CustomCNN(num_classes=num_classes)
+    resnet_model = get_resnet18(num_classes=num_classes)
     
     # train both
     print("\n   Training Custom CNN...")
-    cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=5) # Reusing same name?
+    cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=10) # Reusing same name?
 
     print("\n   Training ResNet18...")
     
-    resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=5) # Reusing same name?
+    resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=10) # Reusing same name?
     
     # Saving Models
     torch.save(cnn_model.state_dict(), "cnn_frozen.pth")
