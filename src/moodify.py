@@ -273,34 +273,36 @@ def cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_tf, resnet_tf, cla
         classes (list): List of class names.
     Returns: None
     '''
-    print("\n=== EMOTION CLASSIFIER CLI ===")
-    print(f"Place images in: {INFERENCE_DIR}\n")
+    while True:
+        print("\n=== EMOTION CLASSIFIER CLI ===")
+        print(f"Place images in: {INFERENCE_DIR}\n")
 
-    images = list(pathlib.Path(INFERENCE_DIR).glob("*"))
-    if not images:
-        print("No images found.")
-        return
+        images = list(pathlib.Path(INFERENCE_DIR).glob("*"))
+        if not images:
+            print("No images found.")
+            return
 
-    for i, img in enumerate(images):
-        print(f"[{i}] {img.name}")
+        for i, img in enumerate(images):
+            print(f"[{i}] {img.name}")
 
-    idx = int(input("\nSelect image index: "))
-    img_path = str(images[idx])
+        idx = int(input("\nSelect image index: "))
+        img_path = str(images[idx])
 
-    print("\nChoose model:")
-    print("[0] Custom CNN")
-    print("[1] ResNet18")
+        print("\nChoose model:")
+        print("[0] Custom CNN")
+        print("[1] ResNet18")
 
-    choice = int(input("Your choice: "))
+        choice = int(input("Your choice: "))
 
-    print("\nPredicting...")
+        print("\nPredicting...")
 
-    if choice == 0:
-        pred = predict_image(cnn_model, img_path, cnn_tf, classes)
-    else:
-        pred = predict_image(resnet_model, img_path, resnet_tf, classes)
-
-    print(f"\nPredicted Emotion: {pred}")
+        if choice == 0:
+            pred = predict_image(cnn_model, img_path, cnn_tf, classes)
+        elif choice == 1:
+            pred = predict_image(resnet_model, img_path, resnet_tf, classes)
+        else:
+            break
+        print(f"\nPredicted Emotion: {pred}")
 
 def main():
     '''
@@ -344,6 +346,10 @@ def main():
     print("\n   Training ResNet18...")
     
     resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=5) # Reusing same name?
+    
+    # Saving Models
+    torch.save(cnn_model.state_dict(), "cnn_frozen.pth")
+    torch.save(resnet_model.state_dict(), "resnet_frozen.pth")
     
     # cli interface
     cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_test_tf, resnet_test_tf, CLASSES)
