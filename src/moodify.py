@@ -15,8 +15,6 @@ from torchvision.datasets import ImageFolder
 # =============
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
-CLASSES = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
-NUM_CLASSES = len(CLASSES)
 
 # =============
 # LOAD DATASET
@@ -113,9 +111,13 @@ def create_dataloaders_imagefolder(data_dir, cnn_train_tf, cnn_test_tf, resnet_t
     resnet_train_loader = DataLoader(resnet_train_ds, batch_size=BATCH_SIZE, shuffle=True)
     resnet_test_loader  = DataLoader(resnet_test_ds, batch_size=BATCH_SIZE, shuffle=False)
 
+    # use class names from ImageFolder
+    classes = cnn_train_ds.classes
+    
     return (
         cnn_train_loader, cnn_test_loader,
-        resnet_train_loader, resnet_test_loader
+        resnet_train_loader, resnet_test_loader,
+        classes
     )
 
     
@@ -325,7 +327,8 @@ def main():
     # create dataloaders
     (
         cnn_train_loader, cnn_test_loader,
-        resnet_train_loader, resnet_test_loader
+        resnet_train_loader, resnet_test_loader,
+        classes
     ) = create_dataloaders_imagefolder(DATA_DIR, cnn_train_tf, cnn_test_tf, resnet_train_tf, resnet_test_tf)
     
     # Sanity checks
@@ -336,8 +339,8 @@ def main():
     print("ResNet batch:", x_res.shape, x_res.min().item(), x_res.max().item())
 
     # initialize models
-    cnn_model = CustomCNN(num_classes=NUM_CLASSES)
-    resnet_model = get_resnet18(num_classes=NUM_CLASSES)
+    cnn_model = CustomCNN(num_classes=classes)
+    resnet_model = get_resnet18(num_classes=classes)
     
     # train both
     print("\n   Training Custom CNN...")
@@ -352,7 +355,7 @@ def main():
     torch.save(resnet_model.state_dict(), "resnet_frozen.pth")
     
     # cli interface
-    cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_test_tf, resnet_test_tf, CLASSES)
+    cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_test_tf, resnet_test_tf, classes)
     
 if __name__ == "__main__":
     main()
