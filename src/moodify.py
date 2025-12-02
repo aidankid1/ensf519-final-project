@@ -192,7 +192,7 @@ def train_model(model, train_loader, test_loader, epochs=5):
     '''
     model = model.to(DEVICE)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.fc.parameters(), lr=1e-3) # backbone frozen, therefore only pass the necessary ones
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -212,7 +212,8 @@ def train_model(model, train_loader, test_loader, epochs=5):
             correct += (outputs.argmax(1) == labels).sum().item()
 
         acc = correct / len(train_loader.dataset)
-        print(f"Epoch {epoch}: Train Loss={total_loss:.4f}, Train Acc={acc:.4f}")
+        avg_loss = total_loss / len(train_loader)
+        print(f"Epoch {epoch}: Train Loss={avg_loss:.4f}, Train Acc={acc:.4f}")
 
     evaluate(model, test_loader)
     return model
@@ -286,25 +287,30 @@ def cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_tf, resnet_tf, cla
 
         for i, img in enumerate(images):
             print(f"[{i}] {img.name}")
+        print("[q] Quit")
 
-        idx = int(input("\nSelect image index: "))
+        choice_idx = input("\nSelect image index (or 'q' to quit): ")
+        if choice_idx.lower() == "q":
+            break
+
+        idx = int(choice_idx)
         img_path = str(images[idx])
 
         print("\nChoose model:")
         print("[0] Custom CNN")
         print("[1] ResNet18")
 
-        choice = int(input("Your choice: "))
-
-        print("\nPredicting...")
-
-        if choice == 0:
+        model_choice = input("Your choice: ")
+        if model_choice == "0":
             pred = predict_image(cnn_model, img_path, cnn_tf, classes)
-        elif choice == 1:
+        elif model_choice == "1":
             pred = predict_image(resnet_model, img_path, resnet_tf, classes)
         else:
-            break
+            print("Invalid choice, returning to menu.")
+            continue
+
         print(f"\nPredicted Emotion: {pred}")
+
 
 def main():
     '''
