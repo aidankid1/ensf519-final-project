@@ -127,7 +127,7 @@ def create_dataloaders_imagefolder(data_dir, cnn_train_tf, cnn_test_tf, resnet_t
 class CustomCNN(nn.Module):
     '''
     A simple Convolutional Neural Network for facial emotion recognition.
-    3 convolutional layers followed by 2 fully connected layers.
+    3 convolutional layers followed by 2 fully connected layers + BatchNorm & Larger FC head.
     48x48 grayscale input images.
     7 output classes.
     '''
@@ -135,21 +135,25 @@ class CustomCNN(nn.Module):
         super().__init__()
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),  # (1 → 32)
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2),                # 48 → 24
             nn.Conv2d(32, 64, 3, padding=1), # 32 → 64
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(2),                # 24 → 12
             nn.Conv2d(64, 128, 3, padding=1), # 64 → 128
+            nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(2),                 # 12 → 6
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 6 * 6, 256),
+            nn.Linear(128 * 6 * 6, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, num_classes)
+            nn.Dropout(0.4),
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
