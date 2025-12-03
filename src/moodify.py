@@ -15,6 +15,9 @@ from torchvision.datasets import ImageFolder
 # =============
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
+RESNET_MODE = "layer4"   # "fc" | "layer4" | "full"
+EPOCHS_CNN = 15
+EPOCHS_RESNET = 15
 
 # =============
 # LOAD DATASET
@@ -119,7 +122,6 @@ def create_dataloaders_imagefolder(data_dir, cnn_train_tf, cnn_test_tf, resnet_t
         resnet_train_loader, resnet_test_loader,
         classes
     )
-
     
 # =============
 # CNN
@@ -164,24 +166,35 @@ class CustomCNN(nn.Module):
 # =============
 # RESNET18
 # =============
-def get_resnet18(num_classes=7):
+def get_resnet18(num_classes=7, mode="layer4"):
     '''
-    Loads a pre-trained ResNet18 model and modifies the final layer for emotion classification.
+    Loads a pre-trained ResNet18 model and configures which parts to fine-tune for emotion classification.
     Args:
         num_classes (int): Number of output classes.
+        mode (str): "fc" | "layer4" | "full"
     Returns:
         model (nn.Module): Modified ResNet18 model.
     '''
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
+    # 1) Freeze everything by default
     for param in model.parameters():
-        param.requires_grad = False  # freeze backbone
-    
-    # Unfreezing the last block (which is layer4 + fc) for fine tuning
-    for param in model.layer4.parameters():
-        param.requires_grad = True
-    for param in model.fc.parameters():
-        param.requires_grad = True
+        param.requires_grad = False
+
+    # 2) Decide what to unfreeze based on mode
+    if mode == "fc":
+        # only final classifier is trainable
+        pass
+    elif mode == "layer4":
+        # unfreeze last conv block + fc
+        for param in model.layer4.parameters():
+            param.requires_grad = True
+    elif mode == "full":
+        # unfreeze ALL layers
+        for param in model.parameters():
+            param.requires_grad = True
+    else:
+        raise ValueError(f"Unknown ResNet mode: {mode}")
 
     # Gives head more capacity (including a Dropout)
     in_features = model.fc.in_features
@@ -197,7 +210,7 @@ def get_resnet18(num_classes=7):
 # =============
 # TRAINING LOOP
 # =============
-def train_model(model, train_loader, test_loader, epochs=5):
+def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
     '''
     Trains the given model using the provided DataLoaders.
     Args:
@@ -205,16 +218,37 @@ def train_model(model, train_loader, test_loader, epochs=5):
         train_loader (DataLoader): DataLoader for training data.
         test_loader (DataLoader): DataLoader for testing data.
         epochs (int): Number of training epochs.
+        mode (str):
+            - "cnn"            -> CustomCNN, all params, lr=1e-3
+            - "resnet_fc"      -> only fc, lr=1e-3
+            - "resnet_layer4"  -> layer4+fc or whatever requires_grad=True, lr=1e-4
+            - "resnet_full"    -> all params, lr=1e-5
     Returns:
         model (nn.Module): The trained model.
     '''
     model = model.to(DEVICE)
     criterion = nn.CrossEntropyLoss()
     # Choose params to optimize
-    if hasattr(model, "fc"):   # ResNet18 path (since backbone is frozen, no need for other params)
-        optimizer = optim.Adam(model.fc.parameters(), lr=1e-4) # smaller lr since we unfreeze last 2 layers
-    else:                      # CustomCNN or other models
+    if mode == "cnn":
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    elif mode == "resnet_fc":
+        # only fc has requires_grad=True in this setup
+        optimizer = optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=1e-3
+        )
+    elif mode == "resnet_layer4":
+        optimizer = optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=1e-4
+        )
+    elif mode == "resnet_full":
+        optimizer = optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=1e-5
+        )
+    else:
+        raise ValueError(f"Unknown training mode: {mode}")
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -369,18 +403,38 @@ def main():
     # initialize models
     num_classes = len(classes)
     cnn_model = CustomCNN(num_classes=num_classes)
-    resnet_model = get_resnet18(num_classes=num_classes)
+    # ----- ResNet -----
+    resnet_model = get_resnet18(num_classes=num_classes, mode=RESNET_MODE)
+
+    if RESNET_MODE == "fc":
+        resnet_mode_name = "resnet_fc"
+    elif RESNET_MODE == "layer4":
+        resnet_mode_name = "resnet_layer4"
+    else:
+        resnet_mode_name = "resnet_full"
     
-    # train both
+    # Training Both Models
     print("\n   Training Custom CNN...")
-    cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=15) # Reusing same name?
+    cnn_model = train_model(
+        cnn_model,
+        cnn_train_loader,
+        cnn_test_loader,
+        epochs=EPOCHS_CNN,
+        mode="cnn"
+    )
 
     print("\n   Training ResNet18...")
-    resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=15) # Reusing same name?
+    resnet_model = train_model(
+        resnet_model,
+        resnet_train_loader,
+        resnet_test_loader,
+        epochs=EPOCHS_RESNET,
+        mode=resnet_mode_name
+    )
     
     # Saving Models
-    torch.save(cnn_model.state_dict(), "cnn_frozen.pth")
-    torch.save(resnet_model.state_dict(), "resnet_frozen.pth")
+    torch.save(cnn_model.state_dict(), f"cnn_frozen_{EPOCHS_CNN}_epochs.pth")
+    torch.save(resnet_model.state_dict(), f"resnet_frozen_{EPOCHS_RESNET}_epoches_{RESNET_MODE}.pth")
     
     # cli interface
     cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_test_tf, resnet_test_tf, classes)
