@@ -369,10 +369,10 @@ def main():
     
     # train both
     print("\n   Training Custom CNN...")
-    cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=10) # Reusing same name?
+    cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=15) # Reusing same name?
 
     print("\n   Training ResNet18...")
-    resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=10) # Reusing same name?
+    resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=15) # Reusing same name?
     
     # Saving Models
     torch.save(cnn_model.state_dict(), "cnn_frozen.pth")
