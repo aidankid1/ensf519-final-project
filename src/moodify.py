@@ -111,7 +111,7 @@ def create_dataloaders_imagefolder(data_dir, cnn_train_tf, cnn_test_tf, resnet_t
     resnet_train_loader = DataLoader(resnet_train_ds, batch_size=BATCH_SIZE, shuffle=True)
     resnet_test_loader  = DataLoader(resnet_test_ds, batch_size=BATCH_SIZE, shuffle=False)
 
-    # use class names from ImageFolder
+    # use class names from ImageFolder (is alphabetically sorted)
     classes = cnn_train_ds.classes
     
     return (
@@ -172,8 +172,22 @@ def get_resnet18(num_classes=7):
 
     for param in model.parameters():
         param.requires_grad = False  # freeze backbone
+    
+    # Unfreezing the last block (which is layer4 + fc) for fine tuning
+    for param in model.layer4.parameters():
+        param.requires_grad = True
+    for param in model.fc.parameters():
+        param.requires_grad = True
 
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # Gives head more capacity (including a Dropout)
+    in_features = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.Linear(in_features, 256),
+        nn.ReLU(),
+        nn.Dropout(0.5),
+        nn.Linear(256, num_classes),
+    )
+
     return model
 
 # =============
@@ -194,7 +208,7 @@ def train_model(model, train_loader, test_loader, epochs=5):
     criterion = nn.CrossEntropyLoss()
     # Choose params to optimize
     if hasattr(model, "fc"):   # ResNet18 path (since backbone is frozen, no need for other params)
-        optimizer = optim.Adam(model.fc.parameters(), lr=1e-3)
+        optimizer = optim.Adam(model.fc.parameters(), lr=1e-4) # smaller lr since we unfreeze last 2 layers
     else:                      # CustomCNN or other models
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
@@ -358,7 +372,6 @@ def main():
     cnn_model = train_model(cnn_model, cnn_train_loader, cnn_test_loader, epochs=10) # Reusing same name?
 
     print("\n   Training ResNet18...")
-    
     resnet_model = train_model(resnet_model, resnet_train_loader, resnet_test_loader, epochs=10) # Reusing same name?
     
     # Saving Models
