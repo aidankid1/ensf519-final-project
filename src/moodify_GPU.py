@@ -16,8 +16,8 @@ from torchvision.datasets import ImageFolder
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
 RESNET_MODE = "full"   # "fc" | "layer4" | "full"
-EPOCHS_CNN = 20
-EPOCHS_RESNET = 20
+EPOCHS_CNN = 100
+EPOCHS_RESNET = 100
 
 # speed up convs on fixed-size inputs
 torch.backends.cudnn.benchmark = True
