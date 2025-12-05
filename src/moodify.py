@@ -19,7 +19,7 @@ import seaborn as sns
 # =============
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
-RESNET_MODE = "full"   # "fc" | "layer4" | "full"
+RESNET_MODE = "fc"   # "fc" | "layer4" | "full"
 EPOCHS_CNN = 20
 EPOCHS_RESNET = 20
 
@@ -263,30 +263,26 @@ def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
         - "resnet_fc"    -> only fc, lr=1e-3
         - "resnet_layer4"-> layer4+fc, lr=1e-4
         - "resnet_full"  -> all params, lr=1e-5
+    Also plots Train Loss and Train Accuracy vs Epoch at the end.
     """
     model = model.to(DEVICE)
     criterion = nn.CrossEntropyLoss()
 
-    # choose params + LR
+    # Choose params + LR
     if mode == "cnn":
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
     elif mode == "resnet_fc":
-        optimizer = optim.Adam(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=1e-3,
-        )
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-3)
     elif mode == "resnet_layer4":
-        optimizer = optim.Adam(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=1e-4,
-        )
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-4)
     elif mode == "resnet_full":
-        optimizer = optim.Adam(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=1e-5,
-        )
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-5)
     else:
         raise ValueError(f"Unknown training mode: {mode}")
+
+    # ---- Metric history ----
+    train_losses = []
+    train_accs = []
 
     for epoch in range(1, epochs + 1):
         start_time = time.time()
@@ -294,6 +290,7 @@ def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
         model.train()
         total_loss = 0.0
         correct = 0
+        total = 0
 
         for i, (imgs, labels) in enumerate(train_loader):
             imgs = imgs.to(DEVICE, non_blocking=True)
@@ -310,18 +307,43 @@ def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
 
             total_loss += loss.item()
             correct += (outputs.argmax(1) == labels).sum().item()
+            total += labels.size(0)
 
         epoch_time = time.time() - start_time
-        acc = correct / len(train_loader.dataset)
-        avg_loss = total_loss / len(train_loader)
+        train_loss = total_loss / len(train_loader)
+        train_acc = correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
         print(
             f"Epoch {epoch}: "
-            f"Train Loss={avg_loss:.4f}, Train Acc={acc:.4f}, "
+            f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
             f"Time={epoch_time:.1f}s"
         )
+
+    # ---- Plot Train Loss and Accuracy vs Epoch ----
+    import matplotlib.pyplot as plt
+
+    epoch_numbers = range(1, len(train_losses) + 1)
+
+    plt.figure(figsize=(8,5))
+    plt.plot(epoch_numbers, train_losses, marker='o', label="Train Loss")
+    plt.plot(epoch_numbers, train_accs, marker='s', label="Train Accuracy")
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Value")
+    plt.title("Train Loss and Accuracy per Epoch")
+    plt.xticks(epoch_numbers)  # Only full numbers on x-axis
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("train_loss_accuracy_epochs.png")
+    plt.show()
+
+    # ---- Evaluate on test set (confusion matrix, etc.) ----
     class_names = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
-    evaluate(model, test_loader,class_names,mode,epochs)
+    evaluate(model, test_loader, class_names, mode, epochs)
+
     return model
 
 

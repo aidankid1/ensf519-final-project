@@ -95,7 +95,7 @@ These factors cap the achievable accuracy, even with strong models.
 
 4. Practical Takeaway
 
-- Both models perform adequately for the task at hand, but they should not be used in any high-stakes or real-world setting without major improvements such as:
+- Both models perform adequately for prototype facial-expressions recognition software, but they should not be used in any high-stakes or real-world setting without major improvements such as:
     - larger and more diverse training data
     - higher-resolution facial crops
     - better class balancing
