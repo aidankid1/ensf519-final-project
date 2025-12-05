@@ -147,8 +147,24 @@ Although our models are relatively lightweight, large-scale facial analysis is e
 **Step 1 - Initialization**
 
 Ensure your computer or environment has the following:
+
+1. **Python 3.10 or higher**
 ```
 python --version: 3.10 or higher
+```
+
+2. Install required Python libraries:
+```
+pip install torch torchvision kagglehub scikit-learn matplotlib seaborn pillow
+```
+
+3. (Optional) For GPU acceleration:
+*(Optional) Nvidia GPU Support*
+   - A CUDA-compatible NVIDIA GPU
+   - NVIDIA drivers installed
+   - PyTorch CUDA build (install from https://pytorch.org)
+```
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 ```
 
 >*Note: Model training time is significantly shorter if your device is using a supported **Nvidia GPU**.*
