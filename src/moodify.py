@@ -461,7 +461,6 @@ def load_models_from_disk(num_classes: int):
     print("\nLoaded models from run:", run_dir.name)
     return cnn_model, resnet_model
 
-
 # =============
 # CLI INTERFACE
 # =============

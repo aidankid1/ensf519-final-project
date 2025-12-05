@@ -31,7 +31,14 @@ This dataset was chosen because:
 Foundational model as a baseline to understand performance.
 
 2. Pre-trained ResNet18
-    - 
+    - Deep CNN pre-trained on ImageNet (1.2 Million Images, 1000 classes) with 224x224 RGB images
+    - Has a total of 18 layers totaling up to 11.7 Million Parameters
+    - Residual connections to solve vanishing gradient problem and ensures stable training
+    - 3 Modes: 
+        - FC ONLY: Fully Connected Layer with all Convolutional Layers Frozen
+        - Layer4 + FC: Unfroze last residual block for trade-off between accuracy and training time
+        - Full Fine-Tuning: Unfroze ALL layers to allow for deep adaptation to grayscale FER-2013 faces 
+
 
 ## Our Results
 write here. include ss's here.
