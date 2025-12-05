@@ -10,6 +10,9 @@ from PIL import Image
 from torchvision import transforms, models
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # =============
 # GLOBAL CONFIG
@@ -17,8 +20,8 @@ from torchvision.datasets import ImageFolder
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
 RESNET_MODE = "full"   # "fc" | "layer4" | "full"
-EPOCHS_CNN = 15
-EPOCHS_RESNET = 15
+EPOCHS_CNN = 20
+EPOCHS_RESNET = 20
 
 # speed up convs on fixed-size inputs
 torch.backends.cudnn.benchmark = True
@@ -317,25 +320,59 @@ def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
             f"Train Loss={avg_loss:.4f}, Train Acc={acc:.4f}, "
             f"Time={epoch_time:.1f}s"
         )
-
-    evaluate(model, test_loader)
+    class_names = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
+    evaluate(model, test_loader,class_names,mode,epochs)
     return model
 
 
 # =============
 # EVAL LOOP
 # =============
-def evaluate(model, loader):
-    """Evaluates the given model on the provided DataLoader."""
+def evaluate(model, loader, class_names=None, mode="model", epochs=0):
+    """Evaluates the model and saves confusion matrix as: mode_epochs_confusion_matrix.png"""
+    import os
+    from sklearn.metrics import confusion_matrix
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
     model.eval()
     correct = 0
+    
+    all_preds = []
+    all_labels = []
+
     with torch.no_grad():
         for imgs, labels in loader:
             imgs = imgs.to(DEVICE, non_blocking=True)
             labels = labels.to(DEVICE, non_blocking=True)
-            preds = model(imgs).argmax(1)
+
+            outputs = model(imgs)
+            preds = outputs.argmax(1)
+
             correct += (preds == labels).sum().item()
-    print("Test Accuracy:", correct / len(loader.dataset))
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    accuracy = correct / len(loader.dataset)
+    print("Test Accuracy:", accuracy)
+
+    cm = confusion_matrix(all_labels, all_preds)
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=class_names, yticklabels=class_names)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title(f"Confusion Matrix ({mode}, {epochs} epochs)")
+
+    # Build auto filename
+    save_path = f"confusion_matrix_{mode}_{epochs}Epochs.png"
+
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    print(f"Saved confusion matrix to: {save_path}")
+
+    plt.show()
 
 
 # =============
@@ -393,7 +430,7 @@ def train_and_save_models(
     )
     torch.save(resnet_model.state_dict(), RESNET_WEIGHTS_PATH)
     print(f"Saved ResNet weights to {RESNET_WEIGHTS_PATH}")
-
+    
     cnn_model.eval()
     resnet_model.eval()
     return cnn_model, resnet_model

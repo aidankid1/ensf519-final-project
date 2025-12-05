@@ -5,7 +5,7 @@
 | ----------- | ----------- |
 | Aidan Huang | 30149948 |
 | Jin Kim | 30173509 |
-| Rohan Lange |  ... |
+| Rohan Lange | 30181306 |
 
 ## Problem We Are Trying To Solve
 Welcome to our ENSF 519 Final Project! We have been tasked by Meta (not actually) to develop a prototype ML model for facial emotion classification. This is in an effort to improve Meta's Instagram/Facebook selfie filter performance.
@@ -41,10 +41,65 @@ Foundational model as a baseline to understand performance.
 
 
 ## Our Results
-write here. include ss's here.
+Test Accuracy
+| Model	| Test Accuracy |
+|------------|------------|
+| Custom CNN | ~0.63 |
+| ResNet18 | ~0.67 |
+### Confusion Matrix — Custom CNN
+![Custom CNN Confusion Matrix](src/saved_models/2025-12-04_20Epochs/confusion_matrix_cnn_20Epochs.png)
+
+### Confusion Matrix — ResNet18 (Layer4 Fine-Tuning)
+![ResNet Confusion Matrix](src/saved_models/2025-12-04_20Epochs/confusion_matrix_resnet_full_20Epochs.png)
+# General Observations
+
+ResNet18 consistently outperformed the Custom CNN by ~4% due to stronger pretrained feature extraction and deeper architectural capacity.
+The improvement, while modest, demonstrates the value of transfer learning, especially on smaller grayscale datasets like FER-2013.
+Training times for ResNet were slightly longer, but still manageable thanks to partial fine-tuning and Cuda taking on average 20 seconds per epoch.
+
+# Confusion Matrix Insights
+
+Across both models, the confusion matrices revealed similar patterns:
+Angry, Fear, and Surprise are frequently misclassified as one another.
+Sad is often confused with Fear or Surprise.
+Happy is typically the easiest class, showing high recall in both models.
+Disgust is the worst-performing class (very common for FER-2013), likely due to:
+    - low sample count
+    - visual similarity to anger
+    - dataset imbalance
+These patterns align with known limitations of the FER-2013 dataset and prior research on facial emotion recognition.
 
 ## Interpretation Of Our Results
-write here.
+The results indicate that while our models can recognize basic facial emotions with moderate accuracy, several challenges remain:
+
+1. Subtle Emotions Are Difficult to Distinguish
+
+    - Emotions like Fear, Surprise, and Anger share overlapping facial features—raised eyebrows, widened eyes, tense mouths—making them hard to separate in low-resolution (48×48) grayscale images. This explains the consistent confusion between these categories across both CNN and ResNet.
+
+2. Dataset Limitations Impact Performance
+
+    - FER-2013 is a widely used but noisy dataset with:
+    - uneven class distribution
+    - limited representation of real-world faces
+    - low image resolution
+
+These factors cap the achievable accuracy, even with strong models.
+
+3. Transfer Learning Helps, But Only So Much
+
+- ResNet18’s slight performance edge (+4%) shows the benefit of pretrained representations. However, the gap is not huge because:
+
+    - ImageNet pretraining uses RGB images, whereas FER-2013 is grayscale
+    - The emotional cues are subtle and dataset-specific
+    - The resolution mismatch (224 → 48 px) limits transferability
+
+4. Practical Takeaway
+
+- Both models perform adequately for the task at hand, but they should not be used in any high-stakes or real-world setting without major improvements such as:
+    - larger and more diverse training data
+    - higher-resolution facial crops
+    - better class balancing
+    - more advanced models (e.g., Vision Transformers, EfficientNet)
 
 ## Any Deviations From Proposal?
 The only deviation from our proposal was excluding a dedicated front-end layer to maximize simplicity and reduce our scope during development. All other aspects of our project closely match our written proposal.
