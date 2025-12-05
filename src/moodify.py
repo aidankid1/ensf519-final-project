@@ -338,7 +338,6 @@ def train_model(model, train_loader, test_loader, epochs=5, mode="cnn"):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("train_loss_accuracy_epochs.png")
-    plt.show()
 
     # ---- Evaluate on test set (confusion matrix, etc.) ----
     class_names = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
@@ -394,7 +393,6 @@ def evaluate(model, loader, class_names=None, mode="model", epochs=0):
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     print(f"Saved confusion matrix to: {save_path}")
 
-    plt.show()
 
 
 # =============
