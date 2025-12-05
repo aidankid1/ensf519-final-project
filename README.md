@@ -166,6 +166,8 @@ Run the `moodify.py` application:
 python moodify.py
 ```
 
+>*Note: Dataset will automatically download upon running the moodify.py application.*
+
 **Step 3 - Moodify**
 
 You will be able to select the model, re-train the models, and run an inference with your own desired images.
