@@ -23,8 +23,8 @@ This dataset was chosen because:
 ## What Models We Used To Solve The Problem
 1. Custom CNN
     - Designed for 48x48 images
-    - Consist of ?? convolutional blocks (Conv -> ReLU -> Maxpool)
-    - ?? fully connected layers
+    - Consist of 3 convolutional blocks (Conv -> BatchNorm -> ReLU -> Maxpool)
+    - 2 fully connected layers
     - Regularization (dropout, data augmentation)
     - Full control over hyperparams
 
