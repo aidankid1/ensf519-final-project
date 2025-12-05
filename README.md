@@ -5,7 +5,7 @@
 | ----------- | ----------- |
 | Aidan Huang | 30149948 |
 | Jin Kim | 30173509 |
-| Rohan Lange |  |
+| Rohan Lange |  ... |
 
 ## Problem We Are Trying To Solve
 Welcome to our ENSF 519 Final Project! We have been tasked by Meta (not actually) to develop a prototype ML model for facial emotion classification. This is in an effort to improve Meta's Instagram/Facebook selfie filter performance.
