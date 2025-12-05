@@ -1,4 +1,5 @@
 import pathlib
+from pathlib import Path
 import time
 import kagglehub
 import torch.nn as nn
@@ -26,6 +27,15 @@ torch.backends.cudnn.benchmark = True
 CPU_CORES = os.cpu_count() or 4
 NUM_WORKERS = max(1, min(8, CPU_CORES - 1))
 PIN_MEMORY = DEVICE.type == "cuda"
+
+# Folder for saved models
+BASE_DIR = Path(__file__).resolve().parent
+SAVE_DIR = BASE_DIR / "saved_models"
+SAVE_DIR.mkdir(exist_ok=True)  # create if not exists
+
+# Canonical filenames (need to change)
+CNN_WEIGHTS_PATH = SAVE_DIR / "cnn_latest.pth"
+RESNET_WEIGHTS_PATH = SAVE_DIR / f"resnet_latest_{RESNET_MODE}.pth"
 
 # =============
 # LOAD DATASET
@@ -157,6 +167,32 @@ def create_dataloaders_imagefolder(data_dir, cnn_train_tf, cnn_test_tf, resnet_t
         classes,
     )
 
+class OldCustomCNN(nn.Module):
+    def __init__(self, num_classes=7):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128 * 6 * 6, 256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
 
 # =============
 # CNN
@@ -346,6 +382,113 @@ def predict_image(model, path, transform, classes):
 
     return classes[pred]
 
+def train_and_save_models(
+    cnn_train_loader,
+    cnn_test_loader,
+    resnet_train_loader,
+    resnet_test_loader,
+    classes,
+):
+    num_classes = len(classes)
+
+    print("\n   Training Custom CNN...")
+    cnn_model = CustomCNN(num_classes=num_classes)
+    cnn_model = train_model(
+        cnn_model,
+        cnn_train_loader,
+        cnn_test_loader,
+        epochs=EPOCHS_CNN,
+        mode="cnn",
+    )
+    torch.save(cnn_model.state_dict(), CNN_WEIGHTS_PATH)
+    print(f"Saved CNN weights to {CNN_WEIGHTS_PATH}")
+
+    if RESNET_MODE == "fc":
+        resnet_mode_name = "resnet_fc"
+    elif RESNET_MODE == "layer4":
+        resnet_mode_name = "resnet_layer4"
+    else:
+        resnet_mode_name = "resnet_full"
+
+    print("\n   Training ResNet18...")
+    resnet_model = get_resnet18(num_classes=num_classes, mode=RESNET_MODE)
+    resnet_model = train_model(
+        resnet_model,
+        resnet_train_loader,
+        resnet_test_loader,
+        epochs=EPOCHS_RESNET,
+        mode=resnet_mode_name,
+    )
+    torch.save(resnet_model.state_dict(), RESNET_WEIGHTS_PATH)
+    print(f"Saved ResNet weights to {RESNET_WEIGHTS_PATH}")
+
+    cnn_model.eval()
+    resnet_model.eval()
+    return cnn_model, resnet_model
+
+def load_models_from_disk(num_classes: int):
+    # 1) find all run folders inside saved_models/
+    if not SAVE_DIR.exists():
+        print("\nNo 'saved_models' folder found yet. Please train first.\n")
+        return None, None
+
+    run_dirs = sorted([d for d in SAVE_DIR.iterdir() if d.is_dir()])
+    if not run_dirs:
+        print("\nNo saved runs found inside 'saved_models/'. Please train first.\n")
+        return None, None
+
+    # 2) let user choose which run (date) to load
+    print("\n=== Saved Model Runs ===")
+    for i, d in enumerate(run_dirs):
+        print(f"[{i}] {d.name}")
+    print("[b] Back to main menu")
+
+    while True:
+        choice = input("Select a run index to load: ").strip().lower()
+        if choice == "b":
+            return None, None
+        if not choice.isdigit():
+            print("Please enter a valid index or 'b' to go back.")
+            continue
+
+        idx = int(choice)
+        if idx < 0 or idx >= len(run_dirs):
+            print("Index out of range, try again.")
+            continue
+
+        run_dir = run_dirs[idx]
+        break
+
+    # 3) inside the chosen run folder, find CNN + ResNet .pth files
+    cnn_files = list(run_dir.glob("cnn_*.pth"))
+    resnet_files = list(run_dir.glob("resnet_*.pth"))
+
+    if not cnn_files or not resnet_files:
+        print(f"\nSelected run '{run_dir.name}' does not contain both cnn_*.pth and resnet_*.pth.")
+        print("Files found:")
+        print("  CNN:", [p.name for p in cnn_files] or "None")
+        print("  ResNet:", [p.name for p in resnet_files] or "None")
+        return None, None
+
+    # take the first match of each (you only have one of each per folder)
+    cnn_path = cnn_files[0]
+    resnet_path = resnet_files[0]
+
+    print(f"\nLoading CNN from {cnn_path} ...")
+    cnn_model = CustomCNN(num_classes=num_classes).to(DEVICE)
+    cnn_state = torch.load(cnn_path, map_location=DEVICE)
+    cnn_model.load_state_dict(cnn_state)
+    cnn_model.eval()
+
+    print(f"Loading ResNet from {resnet_path} ...")
+    resnet_model = get_resnet18(num_classes=num_classes, mode=RESNET_MODE).to(DEVICE)
+    resnet_state = torch.load(resnet_path, map_location=DEVICE)
+    resnet_model.load_state_dict(resnet_state)
+    resnet_model.eval()
+
+    print("\nLoaded models from run:", run_dir.name)
+    return cnn_model, resnet_model
+
 
 # =============
 # CLI INTERFACE
@@ -397,65 +540,64 @@ def main():
 
     print("Welcome to MOODIFY - Facial Emotion Recognition System")
     print("Using device:", DEVICE)
-    print("DataLoader workers:", NUM_WORKERS, "pin_memory:", PIN_MEMORY)
+    # print("DataLoader workers:", NUM_WORKERS, "pin_memory:", PIN_MEMORY)
 
     # Transformations
     cnn_train_tf, cnn_test_tf, resnet_train_tf, resnet_test_tf = transformations()
 
-    # create dataloaders
+    # Dataloaders
     (
         cnn_train_loader, cnn_test_loader,
         resnet_train_loader, resnet_test_loader,
-        classes,
-    ) = create_dataloaders_imagefolder(DATA_DIR, cnn_train_tf, cnn_test_tf, resnet_train_tf, resnet_test_tf)
+        classes
+    ) = create_dataloaders_imagefolder(
+        DATA_DIR, cnn_train_tf, cnn_test_tf, resnet_train_tf, resnet_test_tf
+    )
 
-    # Sanity checks
-    x_cnn, y_cnn = next(iter(cnn_train_loader))
-    print("CNN batch:", x_cnn.shape, x_cnn.min().item(), x_cnn.max().item())
-
-    x_res, y_res = next(iter(resnet_train_loader))
-    print("ResNet batch:", x_res.shape, x_res.min().item(), x_res.max().item())
-
-    # initialize models
     num_classes = len(classes)
-    cnn_model = CustomCNN(num_classes=num_classes)
-    resnet_model = get_resnet18(num_classes=num_classes, mode=RESNET_MODE)
 
-    print("CNN model initially on:", next(cnn_model.parameters()).device)
-    print("ResNet model initially on:", next(resnet_model.parameters()).device)
+    # Optional sanity checks (keep or comment out)
+    # x_cnn, y_cnn = next(iter(cnn_train_loader))
+    # print("CNN batch:", x_cnn.shape, x_cnn.min().item(), x_cnn.max().item())
+    # x_res, y_res = next(iter(resnet_train_loader))
+    # print("ResNet batch:", x_res.shape, x_res.min().item(), x_res.max().item())
 
-    # map RESNET_MODE -> training mode string
-    if RESNET_MODE == "fc":
-        resnet_mode_name = "resnet_fc"
-    elif RESNET_MODE == "layer4":
-        resnet_mode_name = "resnet_layer4"
-    else:  # "full"
-        resnet_mode_name = "resnet_full"
+    # ==========
+    # MAIN MENU
+    # ==========
+    while True:
+        print("\n=== MOODIFY MAIN MENU ===")
+        print("[1] Train new models (CNN + ResNet) and save them")
+        print("[2] Load previously saved models from 'saved_models/'")
+        print("[q] Quit")
 
-    # Training Both Models
-    print("\n   Training Custom CNN...")
-    cnn_model = train_model(
-        cnn_model,
-        cnn_train_loader,
-        cnn_test_loader,
-        epochs=EPOCHS_CNN,
-        mode="cnn",
-    )
+        choice = input("Select an option: ").strip().lower()
 
-    print("\n   Training ResNet18...")
-    resnet_model = train_model(
-        resnet_model,
-        resnet_train_loader,
-        resnet_test_loader,
-        epochs=EPOCHS_RESNET,
-        mode=resnet_mode_name,
-    )
+        if choice == "1":
+            cnn_model, resnet_model = train_and_save_models(
+                cnn_train_loader,
+                cnn_test_loader,
+                resnet_train_loader,
+                resnet_test_loader,
+                classes,
+            )
+            break
 
-    # Saving Models
-    torch.save(cnn_model.state_dict(), f"cnn_frozen_{EPOCHS_CNN}_epochs.pth")
-    torch.save(resnet_model.state_dict(), f"resnet_frozen_{EPOCHS_RESNET}_epochs_{RESNET_MODE}.pth")
+        elif choice == "2":
+            cnn_model, resnet_model = load_models_from_disk(num_classes)
+            if cnn_model is None or resnet_model is None:
+                # loop again so user can choose to train instead
+                continue
+            break
 
-    # cli interface
+        elif choice == "q":
+            print("Exiting MOODIFY. Goodbye!")
+            return
+
+        else:
+            print("Invalid choice, please select 1, 2, or q.")
+
+    # After we have models, run CLI for image prediction
     cli_interface(INFERENCE_DIR, cnn_model, resnet_model, cnn_test_tf, resnet_test_tf, classes)
 
 
